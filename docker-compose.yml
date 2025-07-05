@@ -1,29 +1,9 @@
 version: '3.8'
 
 services:
-  postgres:
-    container_name: postgres
-    image: postgres:17-alpine
-    restart: always
-    environment:
-      POSTGRES_USER: hotelapp
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: hoteldb
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    networks:
-      - hotel-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hotelapp -d hoteldb || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   zookeeper:
     container_name: zookeeper
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.2.15
     restart: always
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -39,7 +19,7 @@ services:
 
   kafka:
     container_name: kafka
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.2.15
     restart: always
     depends_on:
       zookeeper:
@@ -64,112 +44,54 @@ services:
       retries: 5
 
   hotel-service:
-    container_name: hotel-service
-    image: hotel-service:latest
-    build:
-      context: ../hotel-service
-      dockerfile: Dockerfile
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hoteldb
-      SPRING_DATASOURCE_USERNAME: hotelapp
-      SPRING_DATASOURCE_PASSWORD: password
-      SPRING_PROFILES_ACTIVE: docker
-      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
-    ports:
-      - "8081:8080"
-      - "5005:5005"
-    networks:
-      - hotel-network
+    extends:
+      file: ../hotel-service/docker-compose.yml
+      service: hotel-service
+
+  hotel-db:
+    extends:
+      file: ../hotel-service/docker-compose.yml
+      service: hotel-db
 
   reservation-service:
-    container_name: reservation-service
-    image: reservation-service:latest
-    build:
-      context: ../reservation-service
-      dockerfile: Dockerfile
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hoteldb
-      SPRING_DATASOURCE_USERNAME: hotelapp
-      SPRING_DATASOURCE_PASSWORD: password
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_PROFILES_ACTIVE: docker
-      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006"
-    ports:
-      - "8082:8080"
-      - "5006:5006"
-    networks:
-      - hotel-network
+    extends:
+      file: ../reservation-service/docker-compose.yml
+      service: reservation-service
+
+  reservation-db:
+    extends:
+      file: ../reservation-service/docker-compose.yml
+      service: reservation-db
 
   notification-service:
-    container_name: notification-service
-    image: notification-service:latest
-    build:
-      context: ../notification-service
-      dockerfile: Dockerfile
-    depends_on:
-      kafka:
-        condition: service_healthy
-    environment:
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_PROFILES_ACTIVE: docker
-      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007"
-    ports:
-      - "8083:8080"
-      - "5007:5007"
-    networks:
-      - hotel-network
+    extends:
+      file: ../notification-service/docker-compose.yml
+      service: notification-service
 
   api-gateway:
-    container_name: api-gateway
-    image: api-gateway:latest
-    build:
-      context: ../api-gateway
-      dockerfile: Dockerfile
-    environment:
-      SERVICE_URL_HOTEL: http://hotel-service:8081
-      SERVICE_URL_RESERVATION: http://reservation-service:8082
-      SERVICE_URL_NOTIFICATION: http://notification-service:8083
-      SERVICE_URL_AUTH: http://auth-service:8084
-      SPRING_PROFILES_ACTIVE: docker
-      JWT_SECRET: ${JWT_SECRET:-ZhV3+eY767wZQ4ce+qb8PbwanES3wA8XpBvAkC2ZiVA=}
-      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5008"
-    ports:
-      - "8080:8080"
-      - "5008:5008"
-    depends_on:
-      - hotel-service
-      - reservation-service
-      - notification-service
-      - auth-service
-    networks:
-      - hotel-network
+    extends:
+      file: ../api-gateway/docker-compose.yml
+      service: api-gateway
 
   auth-service:
-    container_name: auth-service
-    image: auth-service:latest
-    build:
-      context: ../auth-service
-      dockerfile: Dockerfile
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hoteldb
-      SPRING_DATASOURCE_USERNAME: hotelapp
-      SPRING_DATASOURCE_PASSWORD: password
-      SPRING_PROFILES_ACTIVE: docker
-      JWT_SECRET: ${JWT_SECRET:-ZhV3+eY767wZQ4ce+qb8PbwanES3wA8XpBvAkC2ZiVA=}
-      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5009"
-    ports:
-      - "8084:8080"
-      - "5009:5009"
-    networks:
-      - hotel-network
+    extends:
+      file: ../auth-service/docker-compose.yml
+      service: auth-service
+
+  auth-postgres:
+    extends:
+      file: ../auth-service/docker-compose.yml
+      service: auth-postgres
+
+  payment-service:
+    extends:
+      file: ../payment-service/docker-compose.yml
+      service: payment-service
+
+  payment-db:
+    extends:
+      file: ../payment-service/docker-compose.yml
+      service: payment-db
 
 networks:
   hotel-network:
@@ -178,3 +100,7 @@ networks:
 
 volumes:
   postgres-data:
+  auth-db-data:
+  hotel-db-data:
+  reservation-db-data:
+  payment-db-data:
