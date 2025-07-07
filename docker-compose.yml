@@ -43,6 +43,12 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:8.0.2
+    container_name: gateway-redis
+    ports:
+      - "6379:6379"
+
   hotel-service:
     extends:
       file: ../hotel-service/docker-compose.yml
