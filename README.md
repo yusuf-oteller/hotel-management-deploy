@@ -1,235 +1,104 @@
-# Hotel Management System
+# Hotel Management System - Deployment
 
-This is a **microservices-based hotel management system** built with **Spring Boot, Docker, and Apache Kafka**.  
-It provides a **scalable architecture** for managing hotels, room reservations, and notifications.
+This is the main deployment repository for the **Hotel Management System** project using a microservices architecture with Docker Compose.
 
----
+## Services
 
-##  **Microservices Overview**
+The system is composed of the following services:
 
-| Service Name             | Port | Description                                           |
-|--------------------------|------|-------------------------------------------------------|
-| **Hotel Service**        | 8081 | Manages hotels and rooms (CRUD operations)            |
-| **Reservation Service**  | 8082 | Handles reservations and prevents double bookings     |
-| **Notification Service** | 8083 | Sends notifications upon reservation events via Kafka |
-| **Auth Service**         | 8084 | Auth Service                                          |
-| **API Gateway**          | 8080 | Routes all requests and manages JWT authentication    |
+### 1. API Gateway (`api-gateway`)
+- **Description**: Routes and secures API requests using Spring Cloud Gateway.
+- **Port**: `8080`
+- **Security**: JWT-based authentication
+- **Rate Limiting**: IP-based rate limiting enabled
+- **Features**: Route forwarding, security filtering, service discovery
 
----
+### 2. Auth Service (`auth-service`)
+- **Description**: Handles user registration, login, and JWT token generation.
+- **Port**: `8081`
+- **Database**: PostgreSQL
+- **Security**: BCrypt password encoding, JWT
+- **Features**: 
+  - `/register` and `/login` endpoints
+  - Structured logging
+  - Custom exception handling
+  - Integration and unit tests
 
-##  **Prerequisites**
-- **Docker & Docker Compose**
-- **JDK 21 or later**
-- **Maven**
-- **PostgreSQL 17**
-- **Apache Kafka & Zookeeper**
+### 3. Hotel Service (`hotel-service`)
+- **Description**: Manages hotel data such as name, location, and amenities.
+- **Port**: `8082`
+- **Database**: PostgreSQL
+- **Features**:
+  - CRUD endpoints
+  - JWT-based authorization
+  - Validation
+  - Integration tests using Testcontainers
 
----
+### 4. Reservation Service (`reservation-service`)
+- **Description**: Handles room reservation logic.
+- **Port**: `8083`
+- **Database**: PostgreSQL
+- **Messaging**: Kafka consumer for `payment-result-topic`
+- **Features**:
+  - Pessimistic locking
+  - Custom exception handling
+  - Unit & integration tests
+  - Kafka retry logic
+  - Authorization and mapping via DTOs
 
-## 🚀 **Running the Application**
+### 5. Notification Service (`notification-service`)
+- **Description**: Consumes Kafka `reservation-created-topic` and logs notifications.
+- **Port**: `8084`
+- **Messaging**: Kafka
+- **Features**: Simple consumer logic with logging
 
-1. **Clone all repositories:**
-   ```bash
-   git clone https://github.com/yusuf-oteller/hotel-service.git
-   git clone https://github.com/yusuf-oteller/reservation-service.git
-   git clone https://github.com/yusuf-oteller/notification-service.git
-   git clone https://github.com/yusuf-oteller/api-gateway.git
-   git clone https://github.com/yusuf-oteller/auth-service.git
-   git clone https://github.com/yusuf-oteller/hotel-management-deploy.git
+### 6. Payment Service (`payment-service`)
+- **Description**: Processes payments via different providers.
+- **Port**: `8085`
+- **Database**: PostgreSQL
+- **Messaging**: Kafka producer to `payment-result-topic`
+- **Features**:
+  - Strategy Pattern for provider/type selection
+  - Payten mock 3D Secure integration
+  - DTO-based design
+  - Kafka result publishing
+  - Exception handling
+  - Unit tests and integration tests
 
-2. **Run the services using Docker Compose::**
-   ```bash
-   docker-compose up -d --build
+## Requirements
 
-3. **Verify the services are running:**
-   ```bash
-   docker ps
+- Docker
+- Docker Compose
 
-**Note:**
-
-- Each microservice can be run independently by navigating to its directory and using
-
-   ```bash
-   docker-compose up --build
-
-🔐 **Security & Authentication**
---------------------------------
-
-*   **JWT-based authentication** is implemented via the **API Gateway**.
-
-*   Every request requires a **Bearer Token**, except for authentication endpoints.
-
-*   The API Gateway validates the JWT token and forwards the request.
-
-
-💡 **Note:**
-
-*   **Hotel Service does NOT need SecurityConfig** because **authentication is handled at the gateway level**.
-
-
-### 🔑 **Generating a JWT Token**
-
-- To obtain a JWT token, use the **Auth Service**:
+## Run the Project
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
-     -H "Content-Type: application/json" \
-     -d '{"email": "user@example.com", "password": "password"}'
+docker compose up --build
 ```
 
-- Response:
-```bash
-  {
-    "token": "your_jwt_token_here"
-  }
-```
+> Make sure the Kafka, PostgreSQL, and services are all healthy before testing endpoints.
 
-- Use this token in all further API requests:
+## Postman Collection
 
-```bash
-  -H "Authorization: Bearer your_jwt_token_here"
-```
+Use `Otellercom.postman_collection.json` to test the endpoints.
 
-# API Documentation
+## Network
 
-## Hotel Service
+All services share the same Docker network: `hotel-network`.
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/v1/hotels` | Get all hotels | ✅ |
-| POST | `/api/v1/hotels` | Create a new hotel | ✅ |
-| GET | `/api/v1/hotels/{id}` | Get hotel details by ID | ✅ |
-| PUT | `/api/v1/hotels/{id}` | Update hotel information | ✅ |
-| DELETE | `/api/v1/hotels/{id}` | Delete a hotel | ✅ |
+## Ports Summary
 
-## Reservation Service
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/v1/reservations` | List all reservations | ✅ |
-| POST | `/api/v1/reservations` | Create a new reservation | ✅ |
-| GET | `/api/v1/reservations/{id}` | Get reservation details by ID | ✅ |
-| DELETE | `/api/v1/reservations/{id}` | Cancel a reservation | ✅ |
-
-## Notification Service
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/v1/notifications` | Get all notifications | ✅ |
-| GET | `/api/v1/notifications/{id}` | Get notification details by ID | ✅ |
-
- **Environment Variables**
------------------------------
-
-Set these variables in your **.env** or **Docker Compose** file:
-
-### **Database Configuration**
-```bash
-  POSTGRES_USER=hotelapp
-  POSTGRES_PASSWORD=password
-  POSTGRES_DB=hoteldb
-```
-
-### **JWT Configuration**
-```bash
-  JWT_SECRET=your_secret_key
-  JWT_EXPIRATION=3600000
-```
-
- **Note:**
-
-* **API Gateway MUST have the correct JWT_SECRET**, otherwise token verification will fail.
-* To check if JWT_SECRET is set correctly inside a container:
-```bash
-  exec -it api-gateway printenv | grep JWT\_SECRET
-```
-
-*   If the token is **failing** (401 Unauthorized), make sure both the API Gateway and the Auth Service have the same **JWT_SECRET**.
-
-
-### **Kafka Configuration**
-
-```bash
-  KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-```
-
- **Troubleshooting**
-----------------------
-
-###  **1\. Services not starting**
-
-```bash
-  logs api-gatewaydocker
-  logs hotel-service
-  ```
-
-*   Ensure ports **8080-8083** are **not in use**.
-
-
-###  **2\. Database connection issues**
-* Run:
-```bash
-  docker exec -it hotel-service printenv | grep POSTGRES
-  ```
-
-* Make sure PostgreSQL is running:
-```bash
-  docker-compose up postgres
-  ```
-
-
-###  **3\. JWT Authentication Issues**
-
- **Common Errors:**
-
-*   **401 Unauthorized** → API Gateway could not validate the token.
-
-*   **403 Forbidden** → Token is valid, but user lacks permissions.
-
-
- **Steps to Debug:**
-* Check if JWT_SECRET is consistent across all services:
-
-```bash
-  exec -it api-gateway printenv | grep JWT\_SECRET
-  ```
-* Verify the token:
-```bash
-  -X GET http://localhost:8080/api/v1/hotels \\ 
-  -H "Authorization: Bearer your\_jwt\_token\_here"
-  ```
-* Inspect API Gateway logs:
-```bash
-  logs -f api-gateway
-  ```
-* Inspect Hotel Service logs:
-```bash
-  logs -f hotel-service
-  ```
-
-
-###  **4\. Kafka connection issues**
-* Ensure Kafka & Zookeeper are running
-```bash
-  ps | grep kafka
-  ```
-* Restart Kafka:
-```bash
-  docker-compose restart kafka
-  ```
-
-
-**Development Notes**
------------------------
-
-* Each microservice has its **own** docker-compose.yml file.
-
-* You can run services individually by navigating to the respective directory and running:
-
-```bash
-  docker-compose up --build
-  ```
-* Logs can be viewed using:
-```bash
-  docker logs -f api-gateway
-  ```
+| Service             | Port |
+|---------------------|------|
+| API Gateway         | 8080 |
+| Auth Service        | 8081 |
+| Hotel Service       | 8082 |
+| Reservation Service | 8083 |
+| Notification Service| 8084 |
+| Payment Service     | 8085 |
+| PostgreSQL (hotel)  | 5432 |
+| PostgreSQL (auth)   | 5433 |
+| PostgreSQL (hotel)  | 5434 |
+| PostgreSQL (reservation) | 5435 |
+| PostgreSQL (payment)| 5436 |
+| Kafka               | 29092 |
